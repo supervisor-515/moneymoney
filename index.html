@@ -135,6 +135,25 @@ input[type=time].inp{ padding:0 10px; }
 
 .footnote{ text-align:center; font-size:11px; color:#aab0bd; margin:18px 0 0; }
 
+button.navlabel{ border:none; background:transparent; color:var(--ink); font-family:inherit; cursor:pointer; }
+button.navlabel:active{ transform:scale(.97); }
+
+.mp-year{ display:flex; align-items:center; gap:8px; margin:6px 0 16px; }
+.mp-ylabel{ flex:1; text-align:center; font-size:17px; font-weight:800; }
+.mp-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.mp-cell{ height:54px; border:1px solid var(--line); border-radius:12px; background:#fff; font-size:15px; font-weight:700; color:var(--ink); cursor:pointer; font-family:inherit; }
+.mp-cell:active{ transform:scale(.97); }
+.mp-cell.sel{ background:var(--brand); color:#fff; border-color:var(--brand); }
+
+.set-type{ margin-bottom:10px; }
+select.inp{ appearance:auto; -webkit-appearance:auto; background:#fff; }
+.dchips{ display:flex; gap:6px; }
+.dchip{ flex:1; height:38px; border:1px solid var(--line); border-radius:9px; background:#fff; font-size:13px; font-weight:700; color:var(--sub); cursor:pointer; padding:0; font-family:inherit; }
+.dchip.sun{ color:var(--sun); } .dchip.sat{ color:var(--sat); }
+.dchip.on{ background:var(--brand); color:#fff; border-color:var(--brand); }
+.dchip.sun.on{ background:var(--sun); border-color:var(--sun); color:#fff; }
+.dchip.sat.on{ background:var(--sat); border-color:var(--sat); color:#fff; }
+
 @media (min-width:540px){
   .sheet-overlay{ align-items:center; }
   .sheet{ border-radius:22px; max-height:86vh; }
@@ -151,7 +170,14 @@ input[type=time].inp{ padding:0 10px; }
 /* ===== 상수 ===== */
 var KEY = "albasheet_records_v1";
 var BK = "albasheet_lastbackup_v1";
+var SET = "albasheet_settings_v1";
 var WEEKDAYS = ["일","월","화","수","목","금","토"];
+
+/* 기본 스케줄(설정에서 변경 가능) — 최초 1회 시드 값 */
+var DEFAULT_JOBS = [
+  {id:"job-morning", name:"오전알바 하율이네", type:"morning",    wage:15000, start:"07:00", end:"09:00", days:[1,2,3,4,5]},
+  {id:"job-baby",    name:"지윤이네 베이비시터", type:"babysitter", wage:14000, start:"09:30", end:"15:30", days:[1,3,4,5]}
+];
 
 /* 빨간날(공휴일 + 대체공휴일) — 인사혁신처 기준 2026~2027. 두 집 모두 휴무 처리됨 */
 var HOLIDAYS = {
@@ -200,17 +226,23 @@ function holidayName(dateObj){
 function defaultEntriesFor(dateObj){
   if(holidayName(dateObj)) return []; // 공휴일 휴무
   var dow=dateObj.getDay(), arr=[];
-  if(dow>=1 && dow<=5){
-    arr.push({name:"오전알바 하율이네",type:"morning",active:true,start:"07:00",end:"09:00",wage:15000,memo:""});
-  }
-  if(dow===1||dow===3||dow===4||dow===5){
-    arr.push({name:"지윤이네 베이비시터",type:"babysitter",active:true,start:"09:30",end:"15:30",wage:14000,memo:""});
+  for(var i=0;i<SETTINGS.jobs.length;i++){
+    var j=SETTINGS.jobs[i];
+    if(j.days && j.days.indexOf(dow)>=0){
+      arr.push({name:j.name,type:j.type,active:true,start:j.start,end:j.end,wage:j.wage,memo:""});
+    }
   }
   return arr;
 }
 function effectiveEntries(ds,dateObj){
   if(RECORDS[ds]) return RECORDS[ds];
   return defaultEntriesFor(dateObj);
+}
+function jobLabel(type, fallback){
+  var matches=[];
+  for(var i=0;i<SETTINGS.jobs.length;i++){ if((SETTINGS.jobs[i].type||"custom")===type && SETTINGS.jobs[i].name) matches.push(SETTINGS.jobs[i].name); }
+  if(matches.length===1) return matches[0];
+  return fallback;
 }
 function dayTotals(entries){
   var hours=0,pay=0,count=0;
@@ -244,7 +276,7 @@ function monthSummary(y,m){
 }
 
 /* ===== 상태 + 저장 ===== */
-var RECORDS={}, curYear, curMonth, curTab="calendar", modal=null;
+var RECORDS={}, SETTINGS={jobs:[]}, curYear, curMonth, curTab="calendar", modal=null;
 
 function load(){
   try{ var raw=localStorage.getItem(KEY); if(raw) RECORDS=JSON.parse(raw)||{}; }
@@ -253,6 +285,14 @@ function load(){
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(RECORDS)); }
   catch(e){ alert("저장 공간에 문제가 있어요. ‘월급·백업’ 화면에서 백업 파일을 내려받아 주세요."); }
+}
+function loadSettings(){
+  try{ var raw=localStorage.getItem(SET); if(raw){ var o=JSON.parse(raw); if(o && Array.isArray(o.jobs)){ SETTINGS=o; return; } } }catch(e){}
+  SETTINGS={jobs: DEFAULT_JOBS.map(function(j){ return {id:j.id,name:j.name,type:j.type,wage:j.wage,start:j.start,end:j.end,days:j.days.slice()}; })};
+}
+function saveSettings(){
+  try{ localStorage.setItem(SET, JSON.stringify(SETTINGS)); }
+  catch(e){ alert("설정을 저장하지 못했어요."); }
 }
 
 /* ===== 메인 렌더 ===== */
@@ -266,7 +306,7 @@ function render(){
       '<h1>💰 알바 시급 달력</h1>' +
       '<div class="nav">' +
         '<button class="navbtn" id="prev" aria-label="이전 달">‹</button>' +
-        '<div class="navlabel">'+curYear+'년 '+(curMonth+1)+'월</div>' +
+        '<button class="navlabel" id="navLabel" aria-label="날짜 이동">'+curYear+'년 '+(curMonth+1)+'월</button>' +
         '<button class="navbtn" id="next" aria-label="다음 달">›</button>' +
       '</div>' +
       '<div class="row-between">' +
@@ -274,7 +314,7 @@ function render(){
         '<span class="muted-sm">'+(isThis?"이번 달":"")+'</span>' +
       '</div>' +
       '<div class="total-card">' +
-        '<div class="label">이번 달 예상 월급</div>' +
+        '<div class="label">'+(isThis?"이번 달":(curMonth+1)+"월")+' 예상 월급</div>' +
         '<div class="amt">'+won(s.total.p)+'</div>' +
         '<div class="sub">총 '+s.workDays+'일 근무 · '+fmtHours(s.total.h)+'</div>' +
       '</div>' +
@@ -291,6 +331,7 @@ function render(){
   document.getElementById("prev").onclick=function(){ if(curMonth===0){curYear--;curMonth=11;}else curMonth--; render(); };
   document.getElementById("next").onclick=function(){ if(curMonth===11){curYear++;curMonth=0;}else curMonth++; render(); };
   document.getElementById("todayBtn").onclick=function(){ var t=new Date(); curYear=t.getFullYear(); curMonth=t.getMonth(); render(); };
+  document.getElementById("navLabel").onclick=openMonthPicker;
   document.getElementById("tabCal").onclick=function(){ curTab="calendar"; render(); };
   document.getElementById("tabSum").onclick=function(){ curTab="summary"; render(); };
 
@@ -329,9 +370,9 @@ function renderCalendar(){
 
 function renderSummary(s){
   var rows=[
-    {l:"오전알바 하율이네",c:"#f59e0b",h:s.morning.h,p:s.morning.p},
-    {l:"지윤이네 베이비시터",c:"#10b981",h:s.babysitter.h,p:s.babysitter.p},
-    {l:"기타 근무",c:"#6c63ff",h:s.custom.h,p:s.custom.p}
+    {l:jobLabel("morning","오전알바"),c:"#f59e0b",h:s.morning.h,p:s.morning.p},
+    {l:jobLabel("babysitter","베이비시터"),c:"#10b981",h:s.babysitter.h,p:s.babysitter.p},
+    {l:jobLabel("custom","기타 근무"),c:"#6c63ff",h:s.custom.h,p:s.custom.p}
   ];
   var tr="";
   for(var i=0;i<rows.length;i++){
@@ -347,6 +388,7 @@ function renderSummary(s){
       '<tbody>'+tr+'</tbody>' +
       '<tfoot><tr><td>총합</td><td>'+fmtHours(s.total.h)+'</td><td>'+won(s.total.p)+'</td></tr></tfoot>' +
     '</table>' +
+    '<button class="btn btn-ghost full mt" id="setBtn">⚙️ 기본 근무 설정</button>' +
     '<button class="btn btn-ghost full mt" id="csvBtn">⬇️ '+curYear+'년 '+(curMonth+1)+'월 CSV 내보내기</button>' +
     '<div class="backup">' +
       '<div class="backup-title">🔒 데이터 백업 (안전 보관)</div>' +
@@ -356,10 +398,11 @@ function renderSummary(s){
       '<button class="btn btn-ghost full mt" id="bkImport">백업 파일 불러오기</button>' +
       '<input type="file" id="bkFile" accept="application/json,.json" style="display:none">' +
     '</div>' +
-    '<p class="hint">근무시간 × 시급 = 급여 · 30분 단위까지 계산돼요.</p>';
+    '<p class="hint">근무시간 × 시급 = 급여 · 분 단위까지 정확히 계산돼요.</p>';
 }
 
 function attachSummaryHandlers(){
+  var st=document.getElementById("setBtn"); if(st) st.onclick=openSettings;
   var csv=document.getElementById("csvBtn"); if(csv) csv.onclick=exportCSV;
   var ex=document.getElementById("bkExport"); if(ex) ex.onclick=exportBackup;
   var im=document.getElementById("bkImport"), f=document.getElementById("bkFile");
@@ -375,10 +418,14 @@ function openModal(y,m,d){
     var e=base[i];
     draft.push({id:e.id||makeId(), name:e.name, type:e.type, active:e.active, start:e.start, end:e.end, wage:e.wage, memo:e.memo});
   }
-  modal={y:y,m:m,d:d,ds:ds,dateObj:dateObj,draft:draft};
+  modal={y:y,m:m,d:d,ds:ds,dateObj:dateObj,draft:draft,dirty:false};
   renderModal();
 }
 function closeModal(){ modal=null; document.getElementById("modal-root").innerHTML=""; }
+function attemptCloseModal(){
+  if(modal && modal.dirty && !confirm("저장하지 않은 변경사항이 있어요. 그냥 닫을까요?")) return;
+  closeModal();
+}
 
 function renderModal(){
   var y=modal.y, m=modal.m, d=modal.d, ds=modal.ds, draft=modal.draft;
@@ -390,7 +437,7 @@ function renderModal(){
   for(var i=0;i<draft.length;i++){
     var e=draft[i];
     var h=hoursBetween(e.start,e.end), p=h*(Number(e.wage)||0);
-    var tint=e.type==="morning"?"t-morning":e.type==="baby"||e.type==="babysitter"?"t-baby":"t-custom";
+    var tint=e.type==="morning"?"t-morning":e.type==="babysitter"?"t-baby":"t-custom";
     entriesHtml +=
       '<div class="ent '+tint+(e.active?"":" off")+'" data-i="'+i+'">' +
         '<div class="ent-top">' +
@@ -426,16 +473,16 @@ function renderModal(){
     '</div></div>';
   document.getElementById("modal-root").innerHTML=html;
 
-  document.getElementById("overlay").addEventListener("click",function(ev){ if(ev.target.id==="overlay") closeModal(); });
-  document.getElementById("mClose").onclick=closeModal;
+  document.getElementById("overlay").addEventListener("click",function(ev){ if(ev.target.id==="overlay") attemptCloseModal(); });
+  document.getElementById("mClose").onclick=attemptCloseModal;
   document.getElementById("addBtn").onclick=function(){
     modal.draft.push({id:makeId(),name:"",type:"custom",active:true,start:"10:00",end:"12:00",wage:12000,memo:""});
-    renderModal();
+    modal.dirty=true; renderModal();
   };
   document.getElementById("resetBtn").onclick=function(){
     var def=defaultEntriesFor(modal.dateObj), nd=[];
     for(var j=0;j<def.length;j++){ var de=def[j]; nd.push({id:makeId(),name:de.name,type:de.type,active:de.active,start:de.start,end:de.end,wage:de.wage,memo:de.memo}); }
-    modal.draft=nd; renderModal();
+    modal.draft=nd; modal.dirty=true; renderModal();
   };
   document.getElementById("saveBtn").onclick=saveModal;
 
@@ -449,12 +496,14 @@ function renderModal(){
           var f=inp.getAttribute("data-f");
           if(f==="active"){
             inp.addEventListener("change",function(){
+              modal.dirty=true;
               modal.draft[idx].active=inp.checked;
               if(inp.checked) card.classList.remove("off"); else card.classList.add("off");
               recalcModal();
             });
           } else {
             var handler=function(){
+              modal.dirty=true;
               var v=inp.value;
               if(f==="wage") v = (v==="" ? "" : Number(v));
               modal.draft[idx][f]=v;
@@ -466,7 +515,7 @@ function renderModal(){
         })(inputs[n]);
       }
       var del=card.querySelector('[data-act="del"]');
-      if(del) del.onclick=function(){ modal.draft.splice(idx,1); renderModal(); };
+      if(del) del.onclick=function(){ modal.dirty=true; modal.draft.splice(idx,1); renderModal(); };
     })(cards[k]);
   }
 }
@@ -490,6 +539,149 @@ function saveModal(){
   RECORDS[modal.ds]=cleaned;
   save();
   closeModal();
+  render();
+}
+
+/* ===== 날짜 이동 (월 선택) ===== */
+function openMonthPicker(){
+  var py=curYear;
+  function draw(){
+    var months="";
+    for(var m=0;m<12;m++){
+      var sel=(m===curMonth && py===curYear);
+      months += '<button class="mp-cell'+(sel?" sel":"")+'" data-m="'+m+'">'+(m+1)+'월</button>';
+    }
+    document.getElementById("modal-root").innerHTML =
+      '<div class="sheet-overlay" id="mpOverlay"><div class="sheet" id="mpSheet">' +
+        '<div class="sheet-head"><div class="sheet-date">날짜 이동</div>' +
+        '<button class="x" id="mpClose" aria-label="닫기">✕</button></div>' +
+        '<div class="mp-year"><button class="navbtn" id="mpPrev" aria-label="이전 해">‹</button>' +
+          '<div class="mp-ylabel">'+py+'년</div>' +
+          '<button class="navbtn" id="mpNext" aria-label="다음 해">›</button></div>' +
+        '<div class="mp-grid">'+months+'</div>' +
+      '</div></div>';
+    document.getElementById("mpOverlay").addEventListener("click",function(ev){ if(ev.target.id==="mpOverlay") closeModal(); });
+    document.getElementById("mpClose").onclick=closeModal;
+    document.getElementById("mpPrev").onclick=function(){ py--; draw(); };
+    document.getElementById("mpNext").onclick=function(){ py++; draw(); };
+    var cells=document.querySelectorAll(".mp-cell");
+    for(var i=0;i<cells.length;i++){
+      cells[i].onclick=function(){ curYear=py; curMonth=parseInt(this.getAttribute("data-m"),10); closeModal(); render(); };
+    }
+  }
+  draw();
+}
+
+/* ===== 기본 근무 설정 ===== */
+var settingsDraft=null, settingsDirty=false;
+function openSettings(){
+  settingsDraft = SETTINGS.jobs.map(function(j){ return {id:j.id||makeId(),name:j.name,type:j.type,wage:j.wage,start:j.start,end:j.end,days:(j.days||[]).slice()}; });
+  settingsDirty=false;
+  renderSettings();
+}
+function closeSettings(){ settingsDraft=null; settingsDirty=false; document.getElementById("modal-root").innerHTML=""; }
+function attemptCloseSettings(){
+  if(settingsDirty && !confirm("저장하지 않은 변경사항이 있어요. 그냥 닫을까요?")) return;
+  closeSettings();
+}
+function renderSettings(){
+  var draft=settingsDraft, jobsHtml="";
+  if(draft.length===0) jobsHtml='<div class="empty">기본 근무가 없어요.<br>아래 버튼으로 추가하세요.</div>';
+  for(var i=0;i<draft.length;i++){
+    var j=draft[i];
+    var tint=j.type==="morning"?"t-morning":j.type==="babysitter"?"t-baby":"t-custom";
+    var daysHtml="";
+    for(var d=0;d<7;d++){
+      var on=j.days.indexOf(d)>=0, dc=d===0?"sun":d===6?"sat":"";
+      daysHtml += '<button class="dchip '+dc+(on?" on":"")+'" data-day="'+d+'">'+WEEKDAYS[d]+'</button>';
+    }
+    jobsHtml +=
+      '<div class="ent '+tint+'" data-i="'+i+'">' +
+        '<div class="ent-top">' +
+          '<input class="ent-name" data-f="name" value="'+esc(j.name)+'" placeholder="근무 이름">' +
+          '<button class="trash" data-act="del" aria-label="삭제">🗑</button>' +
+        '</div>' +
+        '<div class="fld set-type"><label>종류 (색상)</label><select class="inp" data-f="type">' +
+          '<option value="morning"'+(j.type==="morning"?" selected":"")+'>오전알바 · 주황</option>' +
+          '<option value="babysitter"'+(j.type==="babysitter"?" selected":"")+'>베이비시터 · 초록</option>' +
+          '<option value="custom"'+(j.type!=="morning"&&j.type!=="babysitter"?" selected":"")+'>기타 · 보라</option>' +
+        '</select></div>' +
+        '<div class="ent-row">' +
+          '<div class="fld"><label>시작</label><input type="time" class="inp" data-f="start" value="'+esc(j.start)+'"></div>' +
+          '<span class="tilde">~</span>' +
+          '<div class="fld"><label>종료</label><input type="time" class="inp" data-f="end" value="'+esc(j.end)+'"></div>' +
+        '</div>' +
+        '<div class="ent-row"><div class="fld grow"><label>시급 (원)</label><input type="number" inputmode="numeric" class="inp" data-f="wage" step="500" min="0" value="'+esc(j.wage)+'"></div></div>' +
+        '<div class="fld"><label>근무 요일</label><div class="dchips">'+daysHtml+'</div></div>' +
+      '</div>';
+  }
+  document.getElementById("modal-root").innerHTML =
+    '<div class="sheet-overlay" id="setOverlay"><div class="sheet" id="setSheet">' +
+      '<div class="sheet-head"><div>' +
+        '<div class="sheet-date">기본 근무 설정</div>' +
+        '<div class="sheet-dow">매주 반복되는 기본 스케줄</div>' +
+      '</div><button class="x" id="setClose" aria-label="닫기">✕</button></div>' +
+      '<p class="backup-desc" style="margin-top:0">시급·시간·요일을 바꾸면 아직 직접 수정하지 않은 날들의 기본 근무에 반영돼요. 이미 고친 날은 그대로 유지되고, 빨간 날(공휴일)은 자동 휴무예요.</p>' +
+      '<div id="setJobs">'+jobsHtml+'</div>' +
+      '<button class="btn-add" id="setAdd">＋ 기본 근무 추가</button>' +
+      '<button class="btn btn-primary full" id="setSave">저장</button>' +
+    '</div></div>';
+
+  document.getElementById("setOverlay").addEventListener("click",function(ev){ if(ev.target.id==="setOverlay") attemptCloseSettings(); });
+  document.getElementById("setClose").onclick=attemptCloseSettings;
+  document.getElementById("setSave").onclick=applySettings;
+  document.getElementById("setAdd").onclick=function(){
+    settingsDraft.push({id:makeId(),name:"",type:"custom",wage:12000,start:"10:00",end:"12:00",days:[]});
+    settingsDirty=true; renderSettings();
+  };
+  var cards=document.querySelectorAll("#setJobs .ent");
+  for(var k=0;k<cards.length;k++){
+    (function(card){
+      var idx=parseInt(card.getAttribute("data-i"),10);
+      var inputs=card.querySelectorAll("[data-f]");
+      for(var n=0;n<inputs.length;n++){
+        (function(inp){
+          var f=inp.getAttribute("data-f");
+          var handler=function(){
+            settingsDirty=true;
+            var v=inp.value;
+            if(f==="wage") v=(v===""?"":Number(v));
+            settingsDraft[idx][f]=v;
+            if(f==="type"){ var t=inp.value;
+              card.classList.remove("t-morning","t-baby","t-custom");
+              card.classList.add(t==="morning"?"t-morning":t==="babysitter"?"t-baby":"t-custom");
+            }
+          };
+          inp.addEventListener("input",handler);
+          inp.addEventListener("change",handler);
+        })(inputs[n]);
+      }
+      var chips=card.querySelectorAll(".dchip");
+      for(var c=0;c<chips.length;c++){
+        (function(chip){
+          chip.onclick=function(){
+            var day=parseInt(chip.getAttribute("data-day"),10);
+            var arr=settingsDraft[idx].days, pos=arr.indexOf(day);
+            if(pos>=0){ arr.splice(pos,1); chip.classList.remove("on"); }
+            else { arr.push(day); chip.classList.add("on"); }
+            settingsDirty=true;
+          };
+        })(chips[c]);
+      }
+      var del=card.querySelector('[data-act="del"]');
+      if(del) del.onclick=function(){ settingsDraft.splice(idx,1); settingsDirty=true; renderSettings(); };
+    })(cards[k]);
+  }
+}
+function applySettings(){
+  var cleaned=[];
+  for(var i=0;i<settingsDraft.length;i++){
+    var j=settingsDraft[i];
+    cleaned.push({id:j.id||makeId(), name:(j.name&&String(j.name).trim())||"근무", type:j.type||"custom", wage:Number(j.wage)||0, start:j.start, end:j.end, days:(j.days||[]).slice().sort(function(a,b){return a-b;})});
+  }
+  SETTINGS={jobs:cleaned};
+  saveSettings();
+  closeSettings();
   render();
 }
 
@@ -521,7 +713,7 @@ function exportCSV(){
   downloadFile("알바급여_"+curYear+"년"+pad2(curMonth+1)+"월.csv", csv, "text/csv;charset=utf-8;");
 }
 function exportBackup(){
-  var data={app:"albasheet",version:1,exportedAt:new Date().toISOString(),records:RECORDS};
+  var data={app:"albasheet",version:1,exportedAt:new Date().toISOString(),records:RECORDS,settings:SETTINGS};
   var t=new Date();
   downloadFile("알바급여_백업_"+t.getFullYear()+pad2(t.getMonth()+1)+pad2(t.getDate())+".json", JSON.stringify(data,null,2), "application/json;charset=utf-8;");
   try{ localStorage.setItem(BK, new Date().toISOString()); }catch(e){}
@@ -533,11 +725,15 @@ function importBackup(file){
   reader.onload=function(){
     try{
       var obj=JSON.parse(reader.result);
-      var rec=(obj && obj.records && typeof obj.records==="object") ? obj.records : ((obj && typeof obj==="object") ? obj : null);
+      var rec=null, st=null;
+      if(obj && obj.records && typeof obj.records==="object"){ rec=obj.records; if(obj.settings && Array.isArray(obj.settings.jobs)) st=obj.settings; }
+      else if(obj && typeof obj==="object"){ rec=obj; }
       if(!rec) throw new Error("형식 오류");
       var cnt=Object.keys(RECORDS).length;
       if(cnt>0 && !confirm("지금 저장된 기록을 불러온 백업으로 바꿀까요?\n(현재 기록은 사라집니다)")) return;
-      RECORDS=rec; save(); render();
+      RECORDS=rec; save();
+      if(st){ SETTINGS=st; saveSettings(); }
+      render();
       alert("백업을 불러왔어요.");
     }catch(e){
       alert("백업 파일을 읽을 수 없어요.\n올바른 백업 파일(.json)인지 확인해 주세요.");
@@ -594,6 +790,7 @@ function init(){
   setupPWA();
   if(navigator.storage && navigator.storage.persist){ try{ navigator.storage.persist(); }catch(e){} }
   load();
+  loadSettings();
   var t=new Date(); curYear=t.getFullYear(); curMonth=t.getMonth();
   render();
 }
