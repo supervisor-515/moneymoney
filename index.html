@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6c63ff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="알바급여">
+<meta name="format-detection" content="telephone=no">
+<title>알바 시급 달력</title>
+<style>
+:root{
+  --bg:#eef0f5; --surface:#ffffff; --ink:#222633; --sub:#737a8a; --line:#e6e8ef;
+  --brand:#6c63ff; --brand2:#8b7cf6; --sun:#e15569; --sat:#2f6bff;
+  --morning:#f59e0b; --baby:#10b981; --custom:#6c63ff;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; background:#e3e5ee; }
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; color:var(--ink); touch-action:manipulation;
+}
+.wrap{
+  max-width:480px; margin:0 auto; min-height:100vh; background:var(--bg);
+  padding-bottom:34px; padding-bottom:calc(34px + env(safe-area-inset-bottom));
+}
+.loading{ padding:90px 0; text-align:center; color:var(--sub); font-size:14px; }
+
+.hdr{ padding:18px 14px 6px; padding-top:calc(18px + env(safe-area-inset-top)); }
+.hdr h1{ margin:0; font-size:18px; font-weight:800; letter-spacing:-0.3px; }
+.nav{ display:flex; align-items:center; gap:8px; margin:14px 0 6px; }
+.navbtn{ width:42px; height:42px; border:none; border-radius:12px; background:var(--surface); font-size:22px; line-height:1; color:var(--ink); box-shadow:0 1px 4px rgba(30,35,60,.08); cursor:pointer; }
+.navbtn:active{ transform:scale(.96); }
+.navlabel{ flex:1; text-align:center; font-size:18px; font-weight:800; letter-spacing:-0.4px; }
+.row-between{ display:flex; align-items:center; justify-content:space-between; min-height:22px; margin-bottom:12px; }
+.link{ background:none; border:none; color:var(--brand); font-size:13px; font-weight:700; cursor:pointer; padding:4px 0; }
+.muted-sm{ font-size:12px; color:var(--sub); font-weight:600; }
+
+.total-card{ background:linear-gradient(135deg,#6c63ff 0%,#8b7cf6 100%); color:#fff; border-radius:20px; padding:18px 18px 16px; box-shadow:0 8px 22px rgba(108,99,255,.28); }
+.total-card .label{ font-size:13px; opacity:.92; font-weight:600; }
+.total-card .amt{ font-size:30px; font-weight:800; margin-top:4px; letter-spacing:-0.5px; }
+.total-card .sub{ font-size:12.5px; opacity:.92; margin-top:8px; font-weight:600; }
+
+.seg{ display:flex; background:#e2e5ee; border-radius:13px; padding:4px; gap:4px; margin-top:14px; }
+.seg button{ flex:1; height:40px; border:none; background:transparent; border-radius:10px; font-size:14px; font-weight:700; color:var(--sub); cursor:pointer; }
+.seg button.active{ background:#fff; color:var(--brand); box-shadow:0 1px 4px rgba(30,35,60,.12); }
+
+.content{ padding:8px 12px 0; }
+
+.cal-head{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin:8px 0 6px; }
+.cal-head div{ text-align:center; font-size:12px; font-weight:700; color:var(--sub); }
+.cal-head .sun{ color:var(--sun); } .cal-head .sat{ color:var(--sat); }
+
+.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+.cal-cell{ position:relative; min-height:64px; background:var(--surface); border:1px solid transparent; border-radius:13px; padding:6px 3px 5px; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; overflow:hidden; font:inherit; }
+.cal-cell.blank{ background:transparent; border:none; cursor:default; }
+.cal-cell .d{ font-size:13px; font-weight:700; color:var(--ink); }
+.cal-cell .d.sun{ color:var(--sun); } .cal-cell .d.sat{ color:var(--sat); }
+.cal-cell.worked{ background:#f3f1ff; }
+.cal-cell.holiday{ background:#fdeef1; }
+.cal-cell .chol{ font-size:9px; color:#d9536a; font-weight:700; margin-top:4px; line-height:1.15; text-align:center; padding:0 1px; }
+.cal-cell.today{ border-color:var(--brand); box-shadow:0 0 0 1px var(--brand) inset; }
+.cal-cell .cpay{ font-size:10px; font-weight:800; color:#4b46c9; letter-spacing:-0.2px; white-space:nowrap; }
+.cal-cell .chrs{ font-size:9.5px; color:var(--sub); font-weight:600; }
+.cal-cell .crest{ font-size:10px; color:#b3b8c5; font-weight:600; margin-top:6px; }
+.cal-cell:active{ transform:scale(.97); }
+.hint{ text-align:center; font-size:12px; color:var(--sub); margin:14px 0 0; line-height:1.5; }
+
+.sum-cards{ display:flex; gap:10px; margin:6px 0 14px; }
+.mini{ flex:1; background:var(--surface); border-radius:16px; padding:14px; box-shadow:0 1px 4px rgba(30,35,60,.06); }
+.mini-l{ font-size:12px; color:var(--sub); font-weight:600; }
+.mini-v{ font-size:20px; font-weight:800; margin-top:6px; letter-spacing:-0.4px; }
+.sum-table{ width:100%; border-collapse:collapse; background:var(--surface); border-radius:16px; overflow:hidden; box-shadow:0 1px 4px rgba(30,35,60,.06); }
+.sum-table th,.sum-table td{ padding:13px 12px; font-size:13.5px; text-align:right; }
+.sum-table th:first-child,.sum-table td:first-child{ text-align:left; }
+.sum-table thead th{ background:#f3f4f9; color:var(--sub); font-weight:700; font-size:12.5px; }
+.sum-table tbody td{ border-top:1px solid var(--line); }
+.sum-table tfoot td{ border-top:2px solid #d8dbe6; font-weight:800; font-size:14.5px; background:#fafbfe; }
+.dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; vertical-align:middle; }
+.full{ width:100%; }
+.mt{ margin-top:14px; }
+
+.backup{ background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:16px; margin-top:18px; }
+.backup-title{ font-size:15px; font-weight:800; }
+.backup-desc{ font-size:12.5px; color:var(--sub); line-height:1.6; margin:8px 0 12px; }
+.backup-status{ font-size:12.5px; font-weight:700; color:var(--brand); background:#f3f1ff; border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+
+.sheet-overlay{ position:fixed; inset:0; background:rgba(20,24,38,.5); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
+.sheet{ background:var(--surface); width:100%; max-width:480px; border-radius:22px 22px 0 0; max-height:90vh; overflow-y:auto; padding:18px 16px 26px; padding-bottom:calc(26px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling:touch; }
+.sheet-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
+.sheet-date{ font-size:19px; font-weight:800; letter-spacing:-0.4px; }
+.sheet-dow{ font-size:14px; color:var(--sub); font-weight:700; margin-top:2px; }
+.sheet-dow.sun{ color:var(--sun); } .sheet-dow.sat{ color:var(--sat); }
+.hol-badge{ display:inline-block; margin-top:7px; background:#fdeef1; color:#d9536a; font-size:12px; font-weight:700; padding:3px 10px; border-radius:8px; }
+.x{ width:34px; height:34px; border:none; border-radius:50%; background:#eef0f5; font-size:15px; color:var(--sub); cursor:pointer; }
+.empty{ text-align:center; color:var(--sub); font-size:14px; line-height:1.6; padding:18px 0; }
+
+.ent{ border:1px solid var(--line); border-radius:16px; padding:13px; margin-bottom:12px; background:#fff; }
+.ent.t-morning{ border-left:4px solid var(--morning); }
+.ent.t-baby{ border-left:4px solid var(--baby); }
+.ent.t-custom{ border-left:4px solid var(--custom); }
+.ent.off{ opacity:.5; }
+.ent-top{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.ent-name{ flex:1; height:40px; border:1px solid var(--line); border-radius:10px; padding:0 11px; font-size:15px; font-weight:700; color:var(--ink); background:#fff; }
+.ent-name:focus{ outline:none; border-color:var(--brand); }
+.ent-row{ display:flex; align-items:flex-end; gap:8px; margin-bottom:10px; }
+.fld{ display:flex; flex-direction:column; gap:5px; flex:1; }
+.fld label{ font-size:12px; color:var(--sub); font-weight:700; }
+.tilde{ padding-bottom:11px; color:var(--sub); font-weight:700; }
+.inp{ width:100%; height:44px; border:1px solid var(--line); border-radius:11px; padding:0 12px; font-size:16px; color:var(--ink); background:#fff; font-family:inherit; }
+.inp:focus{ outline:none; border-color:var(--brand); }
+input[type=time].inp{ padding:0 10px; }
+.ent-calc{ font-size:13px; color:var(--sub); font-weight:600; margin:2px 0 10px; }
+.ent-calc b{ color:var(--ink); font-weight:800; }
+.trash{ width:38px; height:38px; border:none; border-radius:10px; background:#fdeef0; font-size:15px; cursor:pointer; flex:0 0 auto; }
+
+.btn-add{ width:100%; height:48px; border:1.6px dashed var(--brand); background:#fff; color:var(--brand); border-radius:13px; font-size:15px; font-weight:800; cursor:pointer; margin-bottom:8px; }
+.reset-link{ display:block; width:100%; text-align:center; background:none; border:none; color:var(--sub); font-size:13px; font-weight:700; cursor:pointer; padding:6px; margin-bottom:14px; }
+.day-total{ display:flex; justify-content:space-between; background:#f3f4f9; border-radius:14px; padding:14px 16px; font-size:14px; color:var(--sub); font-weight:600; margin-bottom:14px; }
+.day-total b{ color:var(--ink); font-weight:800; font-size:15px; margin-left:4px; }
+
+.btn{ height:50px; border:none; border-radius:14px; font-size:16px; font-weight:800; cursor:pointer; font-family:inherit; }
+.btn-primary{ background:var(--brand); color:#fff; box-shadow:0 6px 16px rgba(108,99,255,.3); }
+.btn-primary:active{ transform:scale(.99); }
+.btn-ghost{ background:var(--surface); color:var(--ink); border:1px solid var(--line); }
+
+.switch{ position:relative; display:inline-block; width:48px; height:28px; flex:0 0 auto; }
+.switch input{ opacity:0; width:0; height:0; }
+.switch .slider{ position:absolute; cursor:pointer; inset:0; background:#cfd3de; border-radius:28px; transition:.18s; }
+.switch .slider:before{ content:""; position:absolute; height:22px; width:22px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.18s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.switch input:checked + .slider{ background:var(--brand); }
+.switch input:checked + .slider:before{ transform:translateX(20px); }
+
+.footnote{ text-align:center; font-size:11px; color:#aab0bd; margin:18px 0 0; }
+
+@media (min-width:540px){
+  .sheet-overlay{ align-items:center; }
+  .sheet{ border-radius:22px; max-height:86vh; }
+}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"><div class="loading">불러오는 중…</div></div>
+<div id="modal-root"></div>
+
+<script>
+"use strict";
+
+/* ===== 상수 ===== */
+var KEY = "albasheet_records_v1";
+var BK = "albasheet_lastbackup_v1";
+var WEEKDAYS = ["일","월","화","수","목","금","토"];
+
+/* 빨간날(공휴일 + 대체공휴일) — 인사혁신처 기준 2026~2027. 두 집 모두 휴무 처리됨 */
+var HOLIDAYS = {
+  "2026-01-01":"신정","2026-02-16":"설날 연휴","2026-02-17":"설날","2026-02-18":"설날 연휴",
+  "2026-03-01":"삼일절","2026-03-02":"대체공휴일","2026-05-05":"어린이날","2026-05-24":"부처님오신날",
+  "2026-05-25":"대체공휴일","2026-06-06":"현충일","2026-08-15":"광복절","2026-08-17":"대체공휴일",
+  "2026-09-24":"추석 연휴","2026-09-25":"추석","2026-09-26":"추석 연휴","2026-10-03":"개천절",
+  "2026-10-05":"대체공휴일","2026-10-09":"한글날","2026-12-25":"크리스마스",
+  "2027-01-01":"신정","2027-02-06":"설날 연휴","2027-02-07":"설날","2027-02-08":"설날 연휴",
+  "2027-02-09":"대체공휴일","2027-03-01":"삼일절","2027-05-05":"어린이날","2027-05-13":"부처님오신날",
+  "2027-06-06":"현충일","2027-08-15":"광복절","2027-08-16":"대체공휴일","2027-09-14":"추석 연휴",
+  "2027-09-15":"추석","2027-09-16":"추석 연휴","2027-10-03":"개천절","2027-10-04":"대체공휴일",
+  "2027-10-09":"한글날","2027-10-11":"대체공휴일","2027-12-25":"크리스마스","2027-12-27":"대체공휴일"
+};
+
+/* ===== 도우미 ===== */
+function pad2(n){ return String(n).padStart(2,"0"); }
+function dateStrOf(y,m,d){ return y + "-" + pad2(m+1) + "-" + pad2(d); }
+function makeId(){ try{ return crypto.randomUUID(); }catch(e){ return "id-"+Math.random().toString(36).slice(2)+Date.now().toString(36); } }
+function wonFmt(n){ return new Intl.NumberFormat("ko-KR").format(Math.round(n||0)); }
+function won(n){ return wonFmt(n) + "원"; }
+function esc(s){
+  return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function hoursBetween(start,end){
+  if(!start||!end) return 0;
+  var a=start.split(":"), b=end.split(":");
+  var mins = (Number(b[0])*60+Number(b[1])) - (Number(a[0])*60+Number(a[1]));
+  if(mins<0) mins=0;
+  return mins/60;
+}
+function fmtHours(h){
+  var t=Math.round(h*60), hh=Math.floor(t/60), mm=t%60;
+  if(t===0) return "0시간";
+  if(mm===0) return hh+"시간";
+  if(hh===0) return mm+"분";
+  return hh+"시간 "+mm+"분";
+}
+function fmtHoursShort(h){
+  var r=Math.round(h*10)/10;
+  return (Number.isInteger(r)?r:r.toFixed(1)) + "시간";
+}
+function holidayName(dateObj){
+  return HOLIDAYS[dateStrOf(dateObj.getFullYear(),dateObj.getMonth(),dateObj.getDate())] || null;
+}
+function defaultEntriesFor(dateObj){
+  if(holidayName(dateObj)) return []; // 공휴일 휴무
+  var dow=dateObj.getDay(), arr=[];
+  if(dow>=1 && dow<=5){
+    arr.push({name:"오전알바 하율이네",type:"morning",active:true,start:"07:00",end:"09:00",wage:15000,memo:""});
+  }
+  if(dow===1||dow===3||dow===4||dow===5){
+    arr.push({name:"지윤이네 베이비시터",type:"babysitter",active:true,start:"09:30",end:"15:30",wage:14000,memo:""});
+  }
+  return arr;
+}
+function effectiveEntries(ds,dateObj){
+  if(RECORDS[ds]) return RECORDS[ds];
+  return defaultEntriesFor(dateObj);
+}
+function dayTotals(entries){
+  var hours=0,pay=0,count=0;
+  for(var i=0;i<entries.length;i++){
+    var e=entries[i];
+    if(e.active){
+      var h=hoursBetween(e.start,e.end);
+      hours+=h; pay+=h*(Number(e.wage)||0); count++;
+    }
+  }
+  return {hours:hours,pay:pay,count:count};
+}
+function monthSummary(y,m){
+  var days=new Date(y,m+1,0).getDate();
+  var cat={morning:{h:0,p:0},babysitter:{h:0,p:0},custom:{h:0,p:0}};
+  var workDays=0;
+  for(var d=1; d<=days; d++){
+    var dobj=new Date(y,m,d), ds=dateStrOf(y,m,d), entries=effectiveEntries(ds,dobj), any=false;
+    for(var i=0;i<entries.length;i++){
+      var e=entries[i];
+      if(e.active){
+        var h=hoursBetween(e.start,e.end), p=h*(Number(e.wage)||0);
+        var key=(e.type==="morning"||e.type==="babysitter")?e.type:"custom";
+        cat[key].h+=h; cat[key].p+=p; any=true;
+      }
+    }
+    if(any) workDays++;
+  }
+  var total={h:cat.morning.h+cat.babysitter.h+cat.custom.h, p:cat.morning.p+cat.babysitter.p+cat.custom.p};
+  return {morning:cat.morning,babysitter:cat.babysitter,custom:cat.custom,total:total,workDays:workDays};
+}
+
+/* ===== 상태 + 저장 ===== */
+var RECORDS={}, curYear, curMonth, curTab="calendar", modal=null;
+
+function load(){
+  try{ var raw=localStorage.getItem(KEY); if(raw) RECORDS=JSON.parse(raw)||{}; }
+  catch(e){ RECORDS={}; }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(RECORDS)); }
+  catch(e){ alert("저장 공간에 문제가 있어요. ‘월급·백업’ 화면에서 백업 파일을 내려받아 주세요."); }
+}
+
+/* ===== 메인 렌더 ===== */
+function render(){
+  var s=monthSummary(curYear,curMonth);
+  var today=new Date();
+  var isThis = curYear===today.getFullYear() && curMonth===today.getMonth();
+  var root=document.getElementById("app");
+  root.innerHTML =
+    '<div class="hdr">' +
+      '<h1>💰 알바 시급 달력</h1>' +
+      '<div class="nav">' +
+        '<button class="navbtn" id="prev" aria-label="이전 달">‹</button>' +
+        '<div class="navlabel">'+curYear+'년 '+(curMonth+1)+'월</div>' +
+        '<button class="navbtn" id="next" aria-label="다음 달">›</button>' +
+      '</div>' +
+      '<div class="row-between">' +
+        '<button class="link" id="todayBtn">오늘로 이동</button>' +
+        '<span class="muted-sm">'+(isThis?"이번 달":"")+'</span>' +
+      '</div>' +
+      '<div class="total-card">' +
+        '<div class="label">이번 달 예상 월급</div>' +
+        '<div class="amt">'+won(s.total.p)+'</div>' +
+        '<div class="sub">총 '+s.workDays+'일 근무 · '+fmtHours(s.total.h)+'</div>' +
+      '</div>' +
+      '<div class="seg">' +
+        '<button id="tabCal" class="'+(curTab==="calendar"?"active":"")+'">📅 달력</button>' +
+        '<button id="tabSum" class="'+(curTab==="summary"?"active":"")+'">📊 월급·백업</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="content">' +
+      (curTab==="calendar" ? renderCalendar() : renderSummary(s)) +
+      '<p class="footnote">✓ 입력하면 휴대폰에 자동 저장돼요.</p>' +
+    '</div>';
+
+  document.getElementById("prev").onclick=function(){ if(curMonth===0){curYear--;curMonth=11;}else curMonth--; render(); };
+  document.getElementById("next").onclick=function(){ if(curMonth===11){curYear++;curMonth=0;}else curMonth++; render(); };
+  document.getElementById("todayBtn").onclick=function(){ var t=new Date(); curYear=t.getFullYear(); curMonth=t.getMonth(); render(); };
+  document.getElementById("tabCal").onclick=function(){ curTab="calendar"; render(); };
+  document.getElementById("tabSum").onclick=function(){ curTab="summary"; render(); };
+
+  if(curTab==="calendar"){
+    document.getElementById("calgrid").addEventListener("click",function(ev){
+      var b=ev.target.closest("button[data-d]");
+      if(b) openModal(curYear,curMonth,parseInt(b.getAttribute("data-d"),10));
+    });
+  } else {
+    attachSummaryHandlers();
+  }
+}
+
+function renderCalendar(){
+  var firstDow=new Date(curYear,curMonth,1).getDay();
+  var days=new Date(curYear,curMonth+1,0).getDate();
+  var today=new Date(), cells="", i, d;
+  for(i=0;i<firstDow;i++) cells += '<div class="cal-cell blank"></div>';
+  for(d=1; d<=days; d++){
+    var dobj=new Date(curYear,curMonth,d), ds=dateStrOf(curYear,curMonth,d);
+    var t=dayTotals(effectiveEntries(ds,dobj)), pay=t.pay, hours=t.hours;
+    var dow=dobj.getDay(), hol=HOLIDAYS[ds];
+    var isToday = today.getFullYear()===curYear && today.getMonth()===curMonth && today.getDate()===d;
+    var cls="cal-cell"; if(pay>0) cls+=" worked"; else if(hol) cls+=" holiday"; if(isToday) cls+=" today";
+    var dcls="d" + ((hol||dow===0)?" sun":dow===6?" sat":"");
+    var inner='<span class="'+dcls+'">'+d+'</span>';
+    if(pay>0) inner += '<span class="cpay">'+wonFmt(pay)+'</span><span class="chrs">'+fmtHoursShort(hours)+'</span>';
+    else if(hol) inner += '<span class="chol">'+esc(hol)+'</span>';
+    else inner += '<span class="crest">휴무</span>';
+    cells += '<button class="'+cls+'" data-d="'+d+'">'+inner+'</button>';
+  }
+  var head=""; for(i=0;i<7;i++){ head += '<div class="'+(i===0?"sun":i===6?"sat":"")+'">'+WEEKDAYS[i]+'</div>'; }
+  return '<div class="cal-head">'+head+'</div><div class="cal-grid" id="calgrid">'+cells+'</div>' +
+    '<p class="hint">날짜를 누르면 그날 근무를 수정할 수 있어요.<br>🔴 빨간 날(공휴일)은 두 집 모두 자동 휴무예요.</p>';
+}
+
+function renderSummary(s){
+  var rows=[
+    {l:"오전알바 하율이네",c:"#f59e0b",h:s.morning.h,p:s.morning.p},
+    {l:"지윤이네 베이비시터",c:"#10b981",h:s.babysitter.h,p:s.babysitter.p},
+    {l:"기타 근무",c:"#6c63ff",h:s.custom.h,p:s.custom.p}
+  ];
+  var tr="";
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    tr += '<tr><td><span class="dot" style="background:'+r.c+'"></span>'+r.l+'</td><td>'+fmtHours(r.h)+'</td><td>'+won(r.p)+'</td></tr>';
+  }
+  return '' +
+    '<div class="sum-cards">' +
+      '<div class="mini"><div class="mini-l">총 근무일수</div><div class="mini-v">'+s.workDays+'일</div></div>' +
+      '<div class="mini"><div class="mini-l">총 근무시간</div><div class="mini-v">'+fmtHours(s.total.h)+'</div></div>' +
+    '</div>' +
+    '<table class="sum-table"><thead><tr><th>구분</th><th>근무시간</th><th>급여</th></tr></thead>' +
+      '<tbody>'+tr+'</tbody>' +
+      '<tfoot><tr><td>총합</td><td>'+fmtHours(s.total.h)+'</td><td>'+won(s.total.p)+'</td></tr></tfoot>' +
+    '</table>' +
+    '<button class="btn btn-ghost full mt" id="csvBtn">⬇️ '+curYear+'년 '+(curMonth+1)+'월 CSV 내보내기</button>' +
+    '<div class="backup">' +
+      '<div class="backup-title">🔒 데이터 백업 (안전 보관)</div>' +
+      '<p class="backup-desc">기록은 휴대폰에 자동 저장돼요. 휴대폰을 바꾸거나 만약을 대비해, 가끔 백업 파일을 저장해두면 데이터가 절대 사라지지 않아요. 저장한 파일은 카카오톡·드라이브·메일 등에 보관하세요.</p>' +
+      '<div class="backup-status">'+getBackupAgeText()+'</div>' +
+      '<button class="btn btn-primary full" id="bkExport">백업 파일 저장하기</button>' +
+      '<button class="btn btn-ghost full mt" id="bkImport">백업 파일 불러오기</button>' +
+      '<input type="file" id="bkFile" accept="application/json,.json" style="display:none">' +
+    '</div>' +
+    '<p class="hint">근무시간 × 시급 = 급여 · 30분 단위까지 계산돼요.</p>';
+}
+
+function attachSummaryHandlers(){
+  var csv=document.getElementById("csvBtn"); if(csv) csv.onclick=exportCSV;
+  var ex=document.getElementById("bkExport"); if(ex) ex.onclick=exportBackup;
+  var im=document.getElementById("bkImport"), f=document.getElementById("bkFile");
+  if(im && f){ im.onclick=function(){ f.click(); }; f.onchange=function(e){ importBackup(e.target.files[0]); e.target.value=""; }; }
+}
+
+/* ===== 날짜 상세 (모달) ===== */
+function openModal(y,m,d){
+  var ds=dateStrOf(y,m,d), dateObj=new Date(y,m,d);
+  var base=effectiveEntries(ds,dateObj);
+  var draft=[];
+  for(var i=0;i<base.length;i++){
+    var e=base[i];
+    draft.push({id:e.id||makeId(), name:e.name, type:e.type, active:e.active, start:e.start, end:e.end, wage:e.wage, memo:e.memo});
+  }
+  modal={y:y,m:m,d:d,ds:ds,dateObj:dateObj,draft:draft};
+  renderModal();
+}
+function closeModal(){ modal=null; document.getElementById("modal-root").innerHTML=""; }
+
+function renderModal(){
+  var y=modal.y, m=modal.m, d=modal.d, ds=modal.ds, draft=modal.draft;
+  var dow=modal.dateObj.getDay(), hol=HOLIDAYS[ds];
+  var entriesHtml="";
+  if(draft.length===0){
+    entriesHtml='<div class="empty">이 날은 휴무예요.<br>아래 버튼으로 근무를 추가할 수 있어요.</div>';
+  }
+  for(var i=0;i<draft.length;i++){
+    var e=draft[i];
+    var h=hoursBetween(e.start,e.end), p=h*(Number(e.wage)||0);
+    var tint=e.type==="morning"?"t-morning":e.type==="baby"||e.type==="babysitter"?"t-baby":"t-custom";
+    entriesHtml +=
+      '<div class="ent '+tint+(e.active?"":" off")+'" data-i="'+i+'">' +
+        '<div class="ent-top">' +
+          '<input class="ent-name" data-f="name" value="'+esc(e.name)+'" placeholder="근무 이름">' +
+          '<label class="switch"><input type="checkbox" data-f="active"'+(e.active?" checked":"")+'><span class="slider"></span></label>' +
+          '<button class="trash" data-act="del" aria-label="삭제">🗑</button>' +
+        '</div>' +
+        '<div class="ent-row">' +
+          '<div class="fld"><label>시작</label><input type="time" class="inp" data-f="start" value="'+esc(e.start)+'"></div>' +
+          '<span class="tilde">~</span>' +
+          '<div class="fld"><label>종료</label><input type="time" class="inp" data-f="end" value="'+esc(e.end)+'"></div>' +
+        '</div>' +
+        '<div class="ent-row">' +
+          '<div class="fld grow"><label>시급 (원)</label><input type="number" inputmode="numeric" class="inp" data-f="wage" step="500" min="0" value="'+esc(e.wage)+'"></div>' +
+        '</div>' +
+        '<div class="ent-calc" data-role="calc">근무 '+fmtHours(h)+' · 급여 <b>'+won(p)+'</b></div>' +
+        '<div class="fld"><label>메모</label><input class="inp" data-f="memo" value="'+esc(e.memo)+'" placeholder="메모 (선택)"></div>' +
+      '</div>';
+  }
+  var tot=dayTotals(draft);
+  var html =
+    '<div class="sheet-overlay" id="overlay"><div class="sheet" id="sheet">' +
+      '<div class="sheet-head"><div>' +
+        '<div class="sheet-date">'+y+'년 '+(m+1)+'월 '+d+'일</div>' +
+        '<div class="sheet-dow'+((hol||dow===0)?" sun":dow===6?" sat":"")+'">'+WEEKDAYS[dow]+'요일</div>' +
+        (hol ? '<span class="hol-badge">🔴 '+esc(hol)+' · 휴무</span>' : "") +
+      '</div><button class="x" id="mClose" aria-label="닫기">✕</button></div>' +
+      '<div id="entries">'+entriesHtml+'</div>' +
+      '<button class="btn-add" id="addBtn">＋ 근무 추가</button>' +
+      '<button class="reset-link" id="resetBtn">기본 근무로 되돌리기</button>' +
+      '<div class="day-total"><span>총 근무시간 <b id="totH">'+fmtHours(tot.hours)+'</b></span><span>총 급여 <b id="totP">'+won(tot.pay)+'</b></span></div>' +
+      '<button class="btn btn-primary full" id="saveBtn">저장</button>' +
+    '</div></div>';
+  document.getElementById("modal-root").innerHTML=html;
+
+  document.getElementById("overlay").addEventListener("click",function(ev){ if(ev.target.id==="overlay") closeModal(); });
+  document.getElementById("mClose").onclick=closeModal;
+  document.getElementById("addBtn").onclick=function(){
+    modal.draft.push({id:makeId(),name:"",type:"custom",active:true,start:"10:00",end:"12:00",wage:12000,memo:""});
+    renderModal();
+  };
+  document.getElementById("resetBtn").onclick=function(){
+    var def=defaultEntriesFor(modal.dateObj), nd=[];
+    for(var j=0;j<def.length;j++){ var de=def[j]; nd.push({id:makeId(),name:de.name,type:de.type,active:de.active,start:de.start,end:de.end,wage:de.wage,memo:de.memo}); }
+    modal.draft=nd; renderModal();
+  };
+  document.getElementById("saveBtn").onclick=saveModal;
+
+  var cards=document.querySelectorAll("#entries .ent");
+  for(var k=0;k<cards.length;k++){
+    (function(card){
+      var idx=parseInt(card.getAttribute("data-i"),10);
+      var inputs=card.querySelectorAll("[data-f]");
+      for(var n=0;n<inputs.length;n++){
+        (function(inp){
+          var f=inp.getAttribute("data-f");
+          if(f==="active"){
+            inp.addEventListener("change",function(){
+              modal.draft[idx].active=inp.checked;
+              if(inp.checked) card.classList.remove("off"); else card.classList.add("off");
+              recalcModal();
+            });
+          } else {
+            var handler=function(){
+              var v=inp.value;
+              if(f==="wage") v = (v==="" ? "" : Number(v));
+              modal.draft[idx][f]=v;
+              if(f==="start"||f==="end"||f==="wage"){ updateEntryCalc(card,idx); recalcModal(); }
+            };
+            inp.addEventListener("input",handler);
+            inp.addEventListener("change",handler);
+          }
+        })(inputs[n]);
+      }
+      var del=card.querySelector('[data-act="del"]');
+      if(del) del.onclick=function(){ modal.draft.splice(idx,1); renderModal(); };
+    })(cards[k]);
+  }
+}
+function updateEntryCalc(card,idx){
+  var e=modal.draft[idx], h=hoursBetween(e.start,e.end), p=h*(Number(e.wage)||0);
+  var c=card.querySelector('[data-role="calc"]');
+  if(c) c.innerHTML='근무 '+fmtHours(h)+' · 급여 <b>'+won(p)+'</b>';
+}
+function recalcModal(){
+  var tot=dayTotals(modal.draft);
+  var th=document.getElementById("totH"), tp=document.getElementById("totP");
+  if(th) th.textContent=fmtHours(tot.hours);
+  if(tp) tp.textContent=won(tot.pay);
+}
+function saveModal(){
+  var cleaned=[];
+  for(var i=0;i<modal.draft.length;i++){
+    var e=modal.draft[i];
+    cleaned.push({id:e.id,name:(e.name&&String(e.name).trim())||"근무",type:e.type,active:e.active,start:e.start,end:e.end,wage:Number(e.wage)||0,memo:e.memo});
+  }
+  RECORDS[modal.ds]=cleaned;
+  save();
+  closeModal();
+  render();
+}
+
+/* ===== 내보내기 / 백업 ===== */
+function downloadFile(filename, text, mime){
+  var blob=new Blob([text],{type:mime||"text/plain;charset=utf-8;"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); },1500);
+}
+function exportCSV(){
+  var header=["날짜","요일","근무","시작","종료","근무시간","시급","급여","메모"];
+  var rows=[header];
+  var days=new Date(curYear,curMonth+1,0).getDate();
+  for(var d=1; d<=days; d++){
+    var dobj=new Date(curYear,curMonth,d), ds=dateStrOf(curYear,curMonth,d), entries=effectiveEntries(ds,dobj);
+    for(var i=0;i<entries.length;i++){
+      var e=entries[i];
+      if(!e.active) continue;
+      var h=hoursBetween(e.start,e.end);
+      rows.push([ds, WEEKDAYS[dobj.getDay()], e.name||"근무", e.start, e.end, h, Number(e.wage)||0, Math.round(h*(Number(e.wage)||0)), (e.memo||"").replace(/[\n,]/g," ")]);
+    }
+  }
+  var csv="\uFEFF" + rows.map(function(r){
+    return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(",");
+  }).join("\n");
+  downloadFile("알바급여_"+curYear+"년"+pad2(curMonth+1)+"월.csv", csv, "text/csv;charset=utf-8;");
+}
+function exportBackup(){
+  var data={app:"albasheet",version:1,exportedAt:new Date().toISOString(),records:RECORDS};
+  var t=new Date();
+  downloadFile("알바급여_백업_"+t.getFullYear()+pad2(t.getMonth()+1)+pad2(t.getDate())+".json", JSON.stringify(data,null,2), "application/json;charset=utf-8;");
+  try{ localStorage.setItem(BK, new Date().toISOString()); }catch(e){}
+  if(curTab==="summary") render();
+}
+function importBackup(file){
+  if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(){
+    try{
+      var obj=JSON.parse(reader.result);
+      var rec=(obj && obj.records && typeof obj.records==="object") ? obj.records : ((obj && typeof obj==="object") ? obj : null);
+      if(!rec) throw new Error("형식 오류");
+      var cnt=Object.keys(RECORDS).length;
+      if(cnt>0 && !confirm("지금 저장된 기록을 불러온 백업으로 바꿀까요?\n(현재 기록은 사라집니다)")) return;
+      RECORDS=rec; save(); render();
+      alert("백업을 불러왔어요.");
+    }catch(e){
+      alert("백업 파일을 읽을 수 없어요.\n올바른 백업 파일(.json)인지 확인해 주세요.");
+    }
+  };
+  reader.readAsText(file);
+}
+function getBackupAgeText(){
+  var t=null; try{ t=localStorage.getItem(BK); }catch(e){}
+  if(!t) return "아직 백업한 적이 없어요. 한 번 저장해두면 안심돼요.";
+  var d=new Date(t), days=Math.floor((Date.now()-d.getTime())/86400000);
+  var ds=d.getFullYear()+"."+pad2(d.getMonth()+1)+"."+pad2(d.getDate());
+  if(days<=0) return "마지막 백업: 오늘 ("+ds+")";
+  return "마지막 백업: "+days+"일 전 ("+ds+")";
+}
+
+/* ===== 홈 화면 앱 설정 (아이콘/매니페스트) ===== */
+function drawIcon(size){
+  var c=document.createElement("canvas"); c.width=size; c.height=size;
+  var g=c.getContext("2d"), s=size;
+  function rr(x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+  g.fillStyle="#6c63ff"; rr(0,0,s,s,s*0.22); g.fill();
+  g.fillStyle="#ffffff"; rr(s*0.19,s*0.24,s*0.62,s*0.56,s*0.07); g.fill();
+  g.fillStyle="#8b7cf6"; rr(s*0.19,s*0.24,s*0.62,s*0.16,s*0.07); g.fill();
+  g.fillStyle="#8b7cf6"; g.fillRect(s*0.19,s*0.33,s*0.62,s*0.07);
+  g.fillStyle="#ffffff";
+  g.beginPath(); g.arc(s*0.33,s*0.32,s*0.022,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.67,s*0.32,s*0.022,0,Math.PI*2); g.fill();
+  g.fillStyle="#6c63ff"; g.font="bold "+(s*0.34)+"px Arial, sans-serif"; g.textAlign="center"; g.textBaseline="middle";
+  g.fillText("₩", s*0.5, s*0.61);
+  return c.toDataURL("image/png");
+}
+function setupPWA(){
+  try{
+    var icon512=drawIcon(512), icon192=drawIcon(192);
+    var manifest={
+      name:"알바 시급 달력", short_name:"알바급여", start_url:".", scope:".",
+      display:"standalone", orientation:"portrait", background_color:"#eef0f5", theme_color:"#6c63ff",
+      icons:[
+        {src:icon192,sizes:"192x192",type:"image/png",purpose:"any maskable"},
+        {src:icon512,sizes:"512x512",type:"image/png",purpose:"any maskable"}
+      ]
+    };
+    var ml=document.createElement("link"); ml.rel="manifest";
+    ml.href="data:application/manifest+json;charset=utf-8,"+encodeURIComponent(JSON.stringify(manifest));
+    document.head.appendChild(ml);
+    var al=document.createElement("link"); al.rel="apple-touch-icon"; al.href=icon512; document.head.appendChild(al);
+    var fi=document.createElement("link"); fi.rel="icon"; fi.href=icon192; document.head.appendChild(fi);
+  }catch(e){}
+}
+
+/* ===== 시작 ===== */
+function init(){
+  setupPWA();
+  if(navigator.storage && navigator.storage.persist){ try{ navigator.storage.persist(); }catch(e){} }
+  load();
+  var t=new Date(); curYear=t.getFullYear(); curMonth=t.getMonth();
+  render();
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",init);
+else init();
+</script>
+</body>
+</html>
