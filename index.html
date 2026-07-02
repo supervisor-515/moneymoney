@@ -154,6 +154,12 @@ select.inp{ appearance:auto; -webkit-appearance:auto; background:#fff; }
 .dchip.sun.on{ background:var(--sun); border-color:var(--sun); color:#fff; }
 .dchip.sat.on{ background:var(--sat); border-color:var(--sat); color:#fff; }
 
+.sheet.slide-left{ animation:sheetSlideL .22s ease; }
+.sheet.slide-right{ animation:sheetSlideR .22s ease; }
+@keyframes sheetSlideL{ from{ transform:translateX(56px); opacity:.35; } to{ transform:translateX(0); opacity:1; } }
+@keyframes sheetSlideR{ from{ transform:translateX(-56px); opacity:.35; } to{ transform:translateX(0); opacity:1; } }
+.swipe-hint{ text-align:center; font-size:12px; color:#aab0bd; font-weight:600; margin:12px 0 0; }
+
 @media (min-width:540px){
   .sheet-overlay{ align-items:center; }
   .sheet{ border-radius:22px; max-height:86vh; }
@@ -410,7 +416,7 @@ function attachSummaryHandlers(){
 }
 
 /* ===== 날짜 상세 (모달) ===== */
-function openModal(y,m,d){
+function openModal(y,m,d,anim){
   var ds=dateStrOf(y,m,d), dateObj=new Date(y,m,d);
   var base=effectiveEntries(ds,dateObj);
   var draft=[];
@@ -418,8 +424,16 @@ function openModal(y,m,d){
     var e=base[i];
     draft.push({id:e.id||makeId(), name:e.name, type:e.type, active:e.active, start:e.start, end:e.end, wage:e.wage, memo:e.memo});
   }
-  modal={y:y,m:m,d:d,ds:ds,dateObj:dateObj,draft:draft,dirty:false};
+  modal={y:y,m:m,d:d,ds:ds,dateObj:dateObj,draft:draft,dirty:false,anim:anim||null};
   renderModal();
+}
+function gotoDay(offset){
+  if(!modal) return;
+  if(modal.dirty && !confirm("저장하지 않은 변경사항이 있어요. 저장하지 않고 이동할까요?")) return;
+  var nd=new Date(modal.y, modal.m, modal.d + offset);
+  var ny=nd.getFullYear(), nm=nd.getMonth();
+  if(ny!==curYear || nm!==curMonth){ curYear=ny; curMonth=nm; render(); }
+  openModal(ny, nm, nd.getDate(), offset>0 ? "slide-left" : "slide-right");
 }
 function closeModal(){ modal=null; document.getElementById("modal-root").innerHTML=""; }
 function attemptCloseModal(){
@@ -459,7 +473,7 @@ function renderModal(){
   }
   var tot=dayTotals(draft);
   var html =
-    '<div class="sheet-overlay" id="overlay"><div class="sheet" id="sheet">' +
+    '<div class="sheet-overlay" id="overlay"><div class="sheet'+(modal.anim?" "+modal.anim:"")+'" id="sheet">' +
       '<div class="sheet-head"><div>' +
         '<div class="sheet-date">'+y+'년 '+(m+1)+'월 '+d+'일</div>' +
         '<div class="sheet-dow'+((hol||dow===0)?" sun":dow===6?" sat":"")+'">'+WEEKDAYS[dow]+'요일</div>' +
@@ -470,8 +484,10 @@ function renderModal(){
       '<button class="reset-link" id="resetBtn">기본 근무로 되돌리기</button>' +
       '<div class="day-total"><span>총 근무시간 <b id="totH">'+fmtHours(tot.hours)+'</b></span><span>총 급여 <b id="totP">'+won(tot.pay)+'</b></span></div>' +
       '<button class="btn btn-primary full" id="saveBtn">저장</button>' +
+      '<p class="swipe-hint">‹ 좌우로 밀면 전날·다음날로 이동해요 ›</p>' +
     '</div></div>';
   document.getElementById("modal-root").innerHTML=html;
+  modal.anim=null;
 
   document.getElementById("overlay").addEventListener("click",function(ev){ if(ev.target.id==="overlay") attemptCloseModal(); });
   document.getElementById("mClose").onclick=attemptCloseModal;
@@ -485,6 +501,24 @@ function renderModal(){
     modal.draft=nd; modal.dirty=true; renderModal();
   };
   document.getElementById("saveBtn").onclick=saveModal;
+
+  /* 좌우 스와이프 → 전날/다음날 이동 */
+  var sheet=document.getElementById("sheet");
+  var swX=0, swY=0, swipeOn=false;
+  sheet.addEventListener("touchstart",function(ev){
+    if(ev.touches.length!==1){ swipeOn=false; return; }
+    var tag=(ev.target.tagName||"").toUpperCase();
+    if(tag==="INPUT"||tag==="SELECT"||tag==="TEXTAREA"){ swipeOn=false; return; }
+    swX=ev.touches[0].clientX; swY=ev.touches[0].clientY; swipeOn=true;
+  },{passive:true});
+  sheet.addEventListener("touchend",function(ev){
+    if(!swipeOn) return;
+    swipeOn=false;
+    var dx=ev.changedTouches[0].clientX-swX, dy=ev.changedTouches[0].clientY-swY;
+    if(Math.abs(dx)>=60 && Math.abs(dx)>Math.abs(dy)*1.5){
+      gotoDay(dx<0 ? 1 : -1);
+    }
+  },{passive:true});
 
   var cards=document.querySelectorAll("#entries .ent");
   for(var k=0;k<cards.length;k++){
